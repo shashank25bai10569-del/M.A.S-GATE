@@ -135,14 +135,14 @@ The core security engine is **completely open source**. Enterprise features (adv
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    THE PROBLEM                          │
+│                    THE PROBLEM                           │
 ├─────────────────────────────────────────────────────────┤
-│                                                         │
-│   92% of web applications have file upload features     │
-│   1 in 3 data breaches involve file uploads             │
-│   Average breach cost: $4.45 million                    │
-│   78% of uploads bypass traditional antivirus           │
-│                                                         │
+│                                                          │
+│   92% of web applications have file upload features   │
+│   1 in 3 data breaches involve file uploads           │
+│   Average breach cost: $4.45 million                  │
+│   78% of uploads bypass traditional antivirus         │
+│                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -160,16 +160,16 @@ The core security engine is **completely open source**. Enterprise features (adv
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    OUR SOLUTION                         │
+│                    OUR SOLUTION                          │
 ├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ✅ AI + Signatures + Heuristics                       |
-│  ✅ Context-aware risk scoring                         │
-│  ✅ Real-time mobile alerts                            │
-│  ✅ Deep content inspection                            │
-│  ✅ Self-learning threat intelligence                  │
-│  ✅ 90% cheaper than enterprise alternatives           │
-│                                                         │
+│                                                          │
+│  ✅ AI + Signatures + Heuristics                        │
+│  ✅ Context-aware risk scoring                           │
+│  ✅ Real-time mobile alerts                              │
+│  ✅ Deep content inspection                              │
+│  ✅ Self-learning threat intelligence                    │
+│  ✅ 90% cheaper than enterprise alternatives             │
+│                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
 ##  🏗️ Architecture
