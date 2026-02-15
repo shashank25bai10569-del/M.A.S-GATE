@@ -57,7 +57,7 @@ else:
 ```
 
 ###  **Mobile Locker**
-Your smartphone becomes a **hardware security key**. Approve sensitive uploads with your fingerprint, scan files on your phone before desktop upload, and even trigger emergency quarantine from anywhere.
+Your smartphone becomes a **hardware security key**. Approve sensitive uploads with your password, scan files on your phone before desktop upload, and even trigger emergency quarantine from anywhere.
 
 ```
 📱 MOBILE LOCKER
@@ -159,7 +159,7 @@ The core security engine is **completely open source**. Enterprise features (adv
 ### Core Algorithm
 
 ```python
-class SecureShieldRiskEngine:
+class GATEWAYRiskEngine:
     def __init__(self):
         self.risk_factors = {
             'double_extension': 40,
@@ -252,9 +252,6 @@ result = engine.calculate_risk(file)
 | **45-59** | QUARANTINE (High) | Manual review required | "Manual review needed - check mobile" |
 | **60-79** | REJECT (Suspicious) | Block + Log + Alert | "Upload blocked - suspicious file" |
 | **80-100** | REJECT (Malicious) | Block + Log + Immediate alert + IP flag | "MALWARE DETECTED - Action required" |
-
----
-
 ##  🛠️ Tech Stack
 
 ### Backend
@@ -264,8 +261,7 @@ result = engine.calculate_risk(file)
 3. Celery                          # Async task queue
 4. Redis                           # Caching & rate limiting
 5. PostgreSQL                      # Primary database
-6. MongoDB                         # Metadata storage (optional)
-7. WebSockets                      # Real-time updates
+6. WebSockets                      # Real-time updates
 ```
 
 ### Security & Scanning
@@ -293,11 +289,10 @@ result = engine.calculate_risk(file)
 ### Mobile (React Native)
 ```
 1. React Native 0.72+                    # Cross-platform mobile
-2. React Native Biometrics               # Fingerprint auth
-3. React Native Push Notification        # Firebase Cloud Messaging
-4. React Native File System              # Local file access
-5. React Native Camera                   # Document scanning
-6. React Native Async Storage            # Local data
+2. React Native Push Notification        # Firebase Cloud Messaging
+3. React Native File System              # Local file access
+4. React Native Camera                   # Document scanning
+5. React Native Async Storage            # Local data
 ```
 
 ### DevOps
@@ -351,10 +346,10 @@ Mobile Alert Sent: "❌ Upload blocked - High risk threat detected"
 
 | Name | Responsibilities |
 |------|------------------|
-| **SHASHANK** | Overall architecture, risk scoring engine, YARA integration |
-| **ANUJ TIWARI** | FastAPI, database, Celery, API design |
-| **PRIYANSHU JAIN** | React dashboard, real-time updates, UI/UX |
-| **NAMAN SHARMA** | TensorFlow models, content classifier, threat intelligence | 
+| **SHASHANK** | Overall architecture, TensorFlow models, YARA integration, real-time updates, database|
+| **ANUJ TIWARI** | FastAPI, database, Celery, React dashboard, threat intelligence |
+| **PRIYANSHU JAIN** | API design, UI/UX , visual creations |
+| **NAMAN SHARMA** | risk scoring engine, content classifier, overall editing | 
 
 ### Individual Contacts
 - **SHASHANK**: [shashank.25bai10569@vitbhopal.ac.in]
@@ -375,11 +370,8 @@ Mobile Alert Sent: "❌ Upload blocked - High risk threat detected"
 - Dropbox Delta Sync Technology
 - VirusTotal API
 - WeTransfer Simplicity
-- Apple AirDrop Privacy
-<p align="center">
-  <b> M.A.S-GATEWAY – Because your files deserve an immune system, not just a metal detector.</b>
-</p>
-
+- AirDroid
+  
 <p align="center">
   <a href="#">Back to Top</a>
 </p>
