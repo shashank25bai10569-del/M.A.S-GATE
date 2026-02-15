@@ -173,7 +173,8 @@ The core security engine is **completely open source**. Enterprise features (adv
 └─────────────────────────────────────────────────────────┘
 ```
 ##  🏗️ Architecture
-<img width="2117" height="1187" alt="diagram-export-2-14-2026-3_15_50-PM" src="https://github.com/user-attachments/assets/ced19f9b-7419-4183-9c09-84d3a5850f1b" />
+<img width="2117" height="1187" alt="diagram-export-2-14-2026-3_15_50-PM" src="https://github.com/user-attachments/assets/7765955a-8c84-4ee1-beac-fff214ea291a" />
+
 
 ## ⚙️ How It Works (Risk Scoring)
 
