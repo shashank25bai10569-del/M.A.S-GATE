@@ -133,18 +133,8 @@ The core security engine is **completely open source**. Enterprise features (adv
 
 ### The Current Landscape
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    THE PROBLEM                           │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│   92% of web applications have file upload features   │
-│   1 in 3 data breaches involve file uploads           │
-│   Average breach cost: $4.45 million                  │
-│   78% of uploads bypass traditional antivirus         │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
+<img width="2664" height="1733" alt="image" src="https://github.com/user-attachments/assets/2d9086f1-0f6f-4013-aaba-6f1a6c179934" />
+
 
 ### Why Existing Solutions Fail
 
@@ -158,20 +148,8 @@ The core security engine is **completely open source**. Enterprise features (adv
 
 ### Our Solution
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    OUR SOLUTION                          │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ✅ AI + Signatures + Heuristics                        │
-│  ✅ Context-aware risk scoring                           │
-│  ✅ Real-time mobile alerts                              │
-│  ✅ Deep content inspection                              │
-│  ✅ Self-learning threat intelligence                    │
-│  ✅ 90% cheaper than enterprise alternatives             │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
+<img width="2388" height="1962" alt="image" src="https://github.com/user-attachments/assets/c9ce9eaf-a8b8-4167-abea-f23d800ea368" />
+
 ##  🏗️ Architecture
 <img width="2117" height="1187" alt="diagram-export-2-14-2026-3_15_50-PM" src="https://github.com/user-attachments/assets/7765955a-8c84-4ee1-beac-fff214ea291a" />
 
