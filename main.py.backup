@@ -1,0 +1,376 @@
+import os
+import shutil
+import uuid
+import magic
+import time
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Allow frontend to connect
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Create folders
+UPLOAD_DIR = "uploads"
+QUARANTINE_DIR = "quarantine"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(QUARANTINE_DIR, exist_ok=True)
+
+# YARA Integration
+try:
+    import yara
+    YARA_IMPORT_AVAILABLE = True
+    print("✅ YARA module imported successfully")
+except ImportError:
+    YARA_IMPORT_AVAILABLE = False
+    print("⚠️ YARA module not installed - continuing without YARA")
+    yara = None
+
+# Load YARA rules if available
+YARA_RULES_PATH = os.path.join(os.path.dirname(__file__), "yara_rules", "malware_rules.yar")
+rules = None
+YARA_AVAILABLE = False
+
+if YARA_IMPORT_AVAILABLE:
+    try:
+        if os.path.exists(YARA_RULES_PATH):
+            rules = yara.compile(filepath=YARA_RULES_PATH)
+            print("✅ YARA rules loaded successfully!")
+            print(f"📁 Rules file: {YARA_RULES_PATH}")
+            YARA_AVAILABLE = True
+        else:
+            print(f"⚠️ YARA rules file NOT FOUND at: {YARA_RULES_PATH}")
+            print(f"📁 Current directory: {os.getcwd()}")
+            if os.path.exists('yara_rules'):
+                print(f"📁 Files in yara_rules: {os.listdir('yara_rules')}")
+    except Exception as e:
+        print(f"⚠️ Could not compile YARA rules: {e}")
+        rules = None
+        YARA_AVAILABLE = False
+else:
+    print("⚠️ YARA not available - skipping rule loading")
+
+# WebSocket connections
+active_connections = []
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+async def notify_clients(message: str):
+    for connection in active_connections:
+        try:
+            await connection.send_text(message)
+        except:
+            pass
+
+def calculate_risk_score(file_path, filename, yara_matches=None):
+    """Calculate risk score 0-100 using pure Python"""
+    score = 0
+    risk_factors = []
+    
+    # Get file size
+    try:
+        stat = os.stat(file_path)
+        size_mb = stat.st_size / (1024 * 1024)
+        
+        # Size factor (0-30 points)
+        if size_mb > 10:
+            score += 30
+            risk_factors.append(f"Very large file: {size_mb:.2f} MB")
+        elif size_mb > 5:
+            score += 20
+            risk_factors.append(f"Large file: {size_mb:.2f} MB")
+        elif size_mb > 1:
+            score += 10
+            risk_factors.append(f"Medium file: {size_mb:.2f} MB")
+    except:
+        risk_factors.append("Could not determine file size")
+    
+    # Check file extension for suspicious ones
+    suspicious_extensions = {
+        '.exe': 60, '.bat': 50, '.sh': 45, '.js': 35, 
+        '.vbs': 55, '.ps1': 60, '.dll': 60, '.msi': 60,
+        '.scr': 60, '.jar': 45, '.class': 40, '.bin': 50,
+        '.cmd': 50, '.reg': 45, '.wsf': 55, '.php': 40,
+        '.py': 25, '.rb': 25, '.pl': 30
+    }
+    
+    file_ext = os.path.splitext(filename)[1].lower()
+    if file_ext in suspicious_extensions:
+        score += suspicious_extensions[file_ext]
+        risk_factors.append(f"Suspicious extension: {file_ext}")
+    
+    # Check MIME type
+    try:
+        mime = magic.from_file(file_path, mime=True)
+        if 'executable' in mime or 'dosexec' in mime:
+            score += 50
+            risk_factors.append(f"Executable MIME type: {mime}")
+        elif mime == 'application/octet-stream':
+            score += 30
+            risk_factors.append("Binary/executable content")
+        elif 'javascript' in mime or 'ecmascript' in mime:
+            score += 25
+            risk_factors.append("Script MIME type")
+    except Exception as e:
+        risk_factors.append(f"MIME detection failed: {str(e)}")
+    
+    # Read file header for magic numbers
+    try:
+        with open(file_path, 'rb') as f:
+            header = f.read(20)
+            
+            if header.startswith(b'MZ'):
+                score += 60
+                risk_factors.append("Windows PE file detected (MZ header)")
+            elif header.startswith(b'\x7fELF'):
+                score += 60
+                risk_factors.append("Linux ELF file detected")
+            elif header.startswith(b'#!'):
+                try:
+                    script_type = header[2:].split(b'\n')[0].decode('utf-8', errors='ignore')
+                    risk_factors.append(f"Shebang script: {script_type}")
+                except:
+                    risk_factors.append("Script file detected")
+                score += 35
+            elif header.startswith(b'PK'):
+                score += 15
+                risk_factors.append("ZIP/Archive format")
+    except Exception as e:
+        risk_factors.append(f"Header analysis failed: {str(e)}")
+    
+    # Add YARA matches to score
+    if yara_matches:
+        score += len(yara_matches) * 20  # 20 points per YARA match
+        for match in yara_matches:
+            risk_factors.append(f"🚨 YARA match: {match}")
+    
+    return min(score, 100), risk_factors
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    file_id = str(uuid.uuid4())
+    file_ext = os.path.splitext(file.filename)[1]
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    
+    # Save file using standard file operations
+    try:
+        content = await file.read()
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        await notify_clients(f"📁 File received: {file.filename} ({len(content)} bytes)")
+    except Exception as e:
+        await notify_clients(f"❌ Failed to save file: {str(e)}")
+        return JSONResponse(content={
+            "status": "error",
+            "message": f"Failed to save file: {str(e)}"
+        }, status_code=500)
+    
+    # Verify file exists
+    if not os.path.exists(file_path):
+        await notify_clients(f"❌ File not found after save: {file_path}")
+        return JSONResponse(content={
+            "status": "error",
+            "message": "File disappeared after save"
+        })
+    
+    await notify_clients(f"✅ File saved successfully")
+    
+    # Small delay to ensure file is fully written
+    time.sleep(0.1)
+    
+    # Step 1: Check MIME type
+    try:
+        mime = magic.from_file(file_path, mime=True)
+        await notify_clients(f"🔍 Detected MIME type: {mime}")
+        
+        allowed_mimes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+            'application/pdf', 'text/plain', 'text/csv', 'text/html', 'text/css',
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip', 'application/x-zip-compressed',
+            'application/json', 'application/xml',
+            'application/octet-stream'
+        ]
+        
+        if mime == 'application/octet-stream' and file_ext not in ['.bin', '.exe', '.dll']:
+            await notify_clients("⚠️ Binary file detected - will be scanned thoroughly")
+        elif mime not in allowed_mimes:
+            os.remove(file_path)
+            await notify_clients(f"❌ Blocked: Invalid MIME type {mime}")
+            return JSONResponse(content={
+                "status": "blocked",
+                "risk_score": 100,
+                "reason": f"File type {mime} not allowed",
+                "message": "File blocked - invalid MIME type"
+            })
+    except Exception as e:
+        await notify_clients(f"⚠️ MIME detection failed: {str(e)}")
+    
+    # Step 2: YARA Scan
+    yara_matches = []
+    if YARA_AVAILABLE and rules:
+        try:
+            await notify_clients("🔍 Scanning with YARA rules...")
+            
+            # Double-check file exists
+            if os.path.exists(file_path):
+                matches = rules.match(file_path)
+                if matches:
+                    yara_matches = [match.rule for match in matches]
+                    await notify_clients(f"🚨 YARA MATCHES FOUND: {', '.join(yara_matches)}")
+                else:
+                    await notify_clients("✅ YARA scan complete - no threats detected")
+            else:
+                await notify_clients(f"⚠️ File disappeared before YARA scan")
+        except Exception as e:
+            await notify_clients(f"⚠️ YARA scan error: {str(e)}")
+    else:
+        await notify_clients("ℹ️ YARA scanning unavailable - using basic detection only")
+        if not YARA_IMPORT_AVAILABLE:
+            await notify_clients("   Reason: YARA module not installed")
+        elif not os.path.exists(YARA_RULES_PATH):
+            await notify_clients("   Reason: Rules file not found")
+        elif rules is None:
+            await notify_clients("   Reason: Rules failed to compile")
+    
+    # Step 3: Calculate risk score with YARA matches
+    risk_score, risk_factors = calculate_risk_score(file_path, file.filename, yara_matches)
+    
+    # Report risk factors
+    for factor in risk_factors:
+        await notify_clients(f"⚠️ {factor}")
+    
+    # Force quarantine for executable extensions
+    suspicious_extensions = ['.exe', '.bat', '.sh', '.vbs', '.ps1', '.dll', '.msi', '.scr', '.bin', '.cmd', '.jar']
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    
+    if file_ext in suspicious_extensions:
+        old_score = risk_score
+        risk_score = max(risk_score, 70)
+        if old_score < 70:
+            await notify_clients(f"⚠️ Executable extension detected - risk score forced from {old_score} to {risk_score}")
+    
+    await notify_clients(f"📊 FINAL RISK SCORE: {risk_score}/100")
+    
+    # Step 4: Decision based on risk score and YARA matches
+    if risk_score > 40 or yara_matches:
+        # Quarantine file
+        quarantine_path = os.path.join(QUARANTINE_DIR, safe_filename)
+        try:
+            # Make sure file exists before moving
+            if os.path.exists(file_path):
+                shutil.move(file_path, quarantine_path)
+                await notify_clients(f"🔒 FILE MOVED TO QUARANTINE")
+            else:
+                await notify_clients(f"❌ Cannot quarantine - file not found")
+                return JSONResponse(content={
+                    "status": "error",
+                    "message": "File not found for quarantine"
+                })
+        except Exception as e:
+            await notify_clients(f"❌ Failed to quarantine: {str(e)}")
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return JSONResponse(content={
+                "status": "error",
+                "message": f"Failed to quarantine file: {str(e)}"
+            })
+        
+        # Determine status message
+        if yara_matches:
+            status = "malicious"
+            message = f"MALWARE DETECTED: {', '.join(yara_matches)}"
+        elif risk_score > 70:
+            status = "malicious"
+            message = "File quarantined - Malicious content detected"
+        else:
+            status = "suspicious"
+            message = "File quarantined - Suspicious content detected"
+        
+        return JSONResponse(content={
+            "status": status,
+            "risk_score": risk_score,
+            "risk_factors": risk_factors,
+            "yara_matches": yara_matches,
+            "yara_available": YARA_AVAILABLE,
+            "file_id": file_id,
+            "message": message
+        })
+    else:
+        # Keep file in uploads (optional - you can delete it if you want)
+        await notify_clients("✅ FILE IS CLEAN - approved")
+        return JSONResponse(content={
+            "status": "clean",
+            "risk_score": risk_score,
+            "risk_factors": risk_factors,
+            "yara_matches": yara_matches,
+            "yara_available": YARA_AVAILABLE,
+            "file_id": file_id,
+            "message": "File is safe"
+        })
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    quarantine_writable = os.access(QUARANTINE_DIR, os.W_OK) if os.path.exists(QUARANTINE_DIR) else False
+    uploads_writable = os.access(UPLOAD_DIR, os.W_OK) if os.path.exists(UPLOAD_DIR) else False
+    
+    return {
+        "status": "healthy", 
+        "yara_available": YARA_AVAILABLE,
+        "yara_import_available": YARA_IMPORT_AVAILABLE,
+        "rules_loaded": rules is not None,
+        "rules_path_exists": os.path.exists(YARA_RULES_PATH) if 'YARA_RULES_PATH' in dir() else False,
+        "quarantine_writable": quarantine_writable,
+        "uploads_writable": uploads_writable,
+        "uploads_dir": os.path.exists(UPLOAD_DIR),
+        "quarantine_dir": os.path.exists(QUARANTINE_DIR),
+        "message": "M.A.S GATEWAY is running"
+    }
+
+@app.get("/stats")
+async def get_stats():
+    """Get basic statistics"""
+    upload_count = len(os.listdir(UPLOAD_DIR)) if os.path.exists(UPLOAD_DIR) else 0
+    quarantine_count = len(os.listdir(QUARANTINE_DIR)) if os.path.exists(QUARANTINE_DIR) else 0
+    
+    return {
+        "uploads": upload_count,
+        "quarantine": quarantine_count,
+        "yara_available": YARA_AVAILABLE,
+        "yara_rules_loaded": rules is not None
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    print("=" * 50)
+    print("🚀 M.A.S GATEWAY Starting...")
+    print("=" * 50)
+    print(f"📁 Upload directory: {os.path.abspath(UPLOAD_DIR)}")
+    print(f"📁 Quarantine directory: {os.path.abspath(QUARANTINE_DIR)}")
+    print(f"🔍 YARA Module Available: {YARA_IMPORT_AVAILABLE}")
+    print(f"🔍 YARA Rules Loaded: {YARA_AVAILABLE}")
+    if YARA_AVAILABLE:
+        print(f"📁 Rules file: {YARA_RULES_PATH}")
+    print("=" * 50)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

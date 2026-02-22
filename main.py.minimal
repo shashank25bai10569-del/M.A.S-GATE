@@ -1,0 +1,64 @@
+import os
+import shutil
+import uuid
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Allow frontend to connect
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Create folders
+UPLOAD_DIR = "uploads"
+QUARANTINE_DIR = "quarantine"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(QUARANTINE_DIR, exist_ok=True)
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    file_id = str(uuid.uuid4())
+    file_ext = os.path.splitext(file.filename)[1]
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    
+    # Save file
+    content = await file.read()
+    with open(file_path, 'wb') as f:
+        f.write(content)
+    
+    # Simple risk score based on extension
+    risk_score = 0
+    suspicious_extensions = ['.exe', '.bat', '.sh', '.vbs', '.ps1', '.dll']
+    
+    if file_ext.lower() in suspicious_extensions:
+        risk_score = 80
+        # Quarantine
+        quarantine_path = os.path.join(QUARANTINE_DIR, safe_filename)
+        shutil.move(file_path, quarantine_path)
+        return JSONResponse(content={
+            "status": "malicious",
+            "risk_score": risk_score,
+            "message": "File quarantined - Suspicious extension"
+        })
+    else:
+        return JSONResponse(content={
+            "status": "clean",
+            "risk_score": 10,
+            "message": "File is safe"
+        })
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "message": "M.A.S GATEWAY running"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
