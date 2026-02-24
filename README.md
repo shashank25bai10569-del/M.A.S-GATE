@@ -349,7 +349,7 @@ Mobile Alert Sent: "❌ Upload blocked - High risk threat detected"
 | **SHASHANK** | Overall architecture, TensorFlow models, YARA integration, real-time updates, database|
 | **ANUJ TIWARI** | FastAPI, database, Celery, React dashboard, threat intelligence |
 | **PRIYANSHU JAIN** | API design, UI/UX , visual creations |
-| **NAMAN SHARMA** | risk scoring engine, content classifier, overall editing | 
+| **NAMAN SHARMA** | risk scoring engine, content classifier, overall editing,video dmo | 
 
 ### Individual Contacts
 - **SHASHANK**: [shashank.25bai10569@vitbhopal.ac.in]
