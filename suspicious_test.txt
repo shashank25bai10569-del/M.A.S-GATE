@@ -1,0 +1,2 @@
+This file contains suspicious strings like powershell.exe and cmd.exe
+It also has eval( and base64_decode for testing
